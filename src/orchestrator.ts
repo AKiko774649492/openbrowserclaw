@@ -40,6 +40,7 @@ import {
   clearGroupMessages,
 } from './db.js';
 import { readGroupFile } from './storage.js';
+import { encryptValue, decryptValue } from './crypto.js';
 import { BrowserChatChannel } from './channels/browser-chat.js';
 import { TelegramChannel } from './channels/telegram.js';
 import { Router } from './router.js';
@@ -115,7 +116,16 @@ export class Orchestrator {
     // Load config
     this.assistantName = (await getConfig(CONFIG_KEYS.ASSISTANT_NAME)) || ASSISTANT_NAME;
     this.triggerPattern = buildTriggerPattern(this.assistantName);
-    this.apiKey = (await getConfig(CONFIG_KEYS.ANTHROPIC_API_KEY)) || '';
+    const storedKey = await getConfig(CONFIG_KEYS.ANTHROPIC_API_KEY);
+    if (storedKey) {
+      try {
+        this.apiKey = await decryptValue(storedKey);
+      } catch {
+        // Stored as plaintext from before encryption — clear it
+        this.apiKey = '';
+        await setConfig(CONFIG_KEYS.ANTHROPIC_API_KEY, '');
+      }
+    }
     this.model = (await getConfig(CONFIG_KEYS.MODEL)) || DEFAULT_MODEL;
     this.maxTokens = parseInt(
       (await getConfig(CONFIG_KEYS.MAX_TOKENS)) || String(DEFAULT_MAX_TOKENS),
@@ -183,7 +193,8 @@ export class Orchestrator {
    */
   async setApiKey(key: string): Promise<void> {
     this.apiKey = key;
-    await setConfig(CONFIG_KEYS.ANTHROPIC_API_KEY, key);
+    const encrypted = await encryptValue(key);
+    await setConfig(CONFIG_KEYS.ANTHROPIC_API_KEY, encrypted);
   }
 
   /**

@@ -6,6 +6,7 @@ import { Orchestrator } from '../orchestrator.js';
 import { getConfig, setConfig } from '../db.js';
 import { CONFIG_KEYS } from '../config.js';
 import { getStorageEstimate, requestPersistentStorage } from '../storage.js';
+import { decryptValue } from '../crypto.js';
 import { el } from './app.js';
 
 /**
@@ -53,9 +54,16 @@ export class SettingsUI {
       input.placeholder = 'sk-ant-...';
       input.id = 'api-key-input';
 
-      // Load current value
-      getConfig(CONFIG_KEYS.ANTHROPIC_API_KEY).then((val) => {
-        if (val) input.value = val;
+      // Load current value (decrypt from storage)
+      getConfig(CONFIG_KEYS.ANTHROPIC_API_KEY).then(async (val) => {
+        if (val) {
+          try {
+            input.value = await decryptValue(val);
+          } catch {
+            // Stored as plaintext from before encryption — clear it
+            input.value = '';
+          }
+        }
       });
 
       const saveBtn = document.createElement('button');
